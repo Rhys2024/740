@@ -4,7 +4,8 @@ import fredapi as fa
 from datetime import date, timedelta
 #from Sector_Exposure import Rate_Exposures
 import numpy as np
-
+from statsmodels.tsa.stattools import adfuller
+from scipy.stats import norm
 
 
 def beta(data_2_columns):
@@ -125,3 +126,35 @@ def update_data():
         #sec.columns = factor_names
         #return sec.dropna()
 
+
+def get_monthly_data(data):
+        
+    return data.groupby(pd.PeriodIndex(data.index, freq="M"))[[i for i in data.columns]].mean()
+
+
+def is_stationary(series):
+    
+    return adfuller(series)[1] < .05
+
+
+def VAR(df_of_returns, weights, n_days, current_value_of_portfolio, confidence_level = .05):
+    
+    returns = df_of_returns.pct_change()
+    cov_returns = returns.cov()
+    avg_rets = returns.mean()
+    
+    port_mean = avg_rets.dot(weights)
+    port_stdev = np.sqrt(weights.T.dot(cov_returns).dot(weights))
+    
+    # Calculate mean of investment
+    mean_investment = (1+port_mean) * current_value_of_portfolio
+                
+    # Calculate standard deviation of investmnet
+    stdev_investment = current_value_of_portfolio * port_stdev
+
+    cutoff1 = norm.ppf(confidence_level, mean_investment, stdev_investment)
+
+    var_1d1 = current_value_of_portfolio - cutoff1
+    
+    
+    return np.round(var_1d1*np.sqrt(n_days), 2)

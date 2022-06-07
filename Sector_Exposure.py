@@ -1,3 +1,4 @@
+from statistics import correlation
 import pandas as pd
 import numpy as np
 from collections import deque
@@ -164,7 +165,51 @@ class Rate_Exposures(object):
         return rets
 
     
-    def get_correlations(self, window = None, rate = 'both', full = False):
+    def get_betas_x_days_after_signal(self, window = None, rate = 'both', full = False):
+        
+        '''
+        
+        Full being False inplies that the data is showing correlation Means
+        
+        '''
+        
+        assert window, 'Please enter a value for window size'
+        assert isinstance(window, int), "window must be an int"
+        assert window > 0, "please enter a positive integer for window"
+        assert isinstance(full, bool), "full must be a boolean"
+        
+        betas = {}
+        
+        drops = [col for col in self.df.columns if col == self.benchmark or col in self.compare_against]
+        
+        consider_df = self.df.pct_change()
+
+        for num, date in enumerate(self.df.index):
+            
+            if num > 0 and (num+window < len(self.df)):
+                
+                # (self.df[num:num+window].corr()[self.benchmark])
+                betas[date] = {}
+                
+                for sec in self.sectors:
+                    betas[date][sec] = useful.beta_asset_to_index(consider_df[[sec, self.benchmark]][num:num+window].values)
+                    
+        # .drop(columns = [self.benchmark])
+        betas = pd.DataFrame(betas).T
+        
+        
+        for num, score in enumerate(self.scores):
+            
+            betas[f"{self.compare_against[num]}_scores"] = self.scores[score]
+        
+        betas = self.get_return_data(betas.dropna(), rate)
+
+        if not full:
+            return pd.DataFrame({score : betas[score].mean() for score in betas}).T
+        else:
+            return betas
+    
+    def get_correlation_x_days_after_signal(self, window = None, rate = 'both', full = False):
         
         '''
         
@@ -188,14 +233,13 @@ class Rate_Exposures(object):
             if num > 0 and (num+window < len(self.df)):
                 
                 # (self.df[num:num+window].corr()[self.benchmark])
-                correlations[date] = {}
+                correlations[date] = consider_df[num:num+window].corr()[self.benchmark].drop(index = drops)
                 
-                for sec in self.sectors:
-                    correlations[date][sec] = useful.beta_asset_to_index(consider_df[[sec, self.benchmark]][num:num+window].values)
+                #for sec in self.sectors:
+                    #correlations[date][sec] = useful.beta_asset_to_index(consider_df[[sec, self.benchmark]][num:num+window].values)
                     
         # .drop(columns = [self.benchmark])
         correlations = pd.DataFrame(correlations).T
-        
         
         for num, score in enumerate(self.scores):
             
@@ -204,6 +248,7 @@ class Rate_Exposures(object):
         correlations = self.get_return_data(correlations.dropna(), rate)
 
         if not full:
+            # .drop(columns = drops)
             return pd.DataFrame({score : correlations[score].mean() for score in correlations}).T
         else:
             return correlations
