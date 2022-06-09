@@ -1,4 +1,4 @@
-from statistics import correlation
+#from statistics import correlation
 import pandas as pd
 import numpy as np
 from collections import deque
@@ -37,6 +37,7 @@ class Rate_Exposures(object):
         self.forward_returns_daily = self.get_total_returns()
         for rate in self.compare_against:
             self.forward_returns_daily[f"{rate}_scores"] = self.scores[rate]
+        #print(self.forward_returns_daily)
         self.forward_returns_monthly = self.get_monthly_data(self.forward_returns_daily)
         for rate in self.compare_against:
             self.forward_returns_monthly[f"{rate}_scores"] = self.monthly_scores[rate]
@@ -47,7 +48,7 @@ class Rate_Exposures(object):
                  index = self.scores['Yield Curve'].dropna().index)
         self.combined_signal_counts = self.combined_signals.value_counts().to_dict()
             
-        
+        #print(self.scores['Real Yield'])
         self.removes = [f"{self.compare_against[0]}_scores", f"{self.compare_against[1]}_scores"]
         
         ### DAILY DATA ###
@@ -115,7 +116,7 @@ class Rate_Exposures(object):
     
         target_rate = self.df[target]
 
-        gradient = pd.Series([(grad-target_rate[num])/5 for num, grad in enumerate(target_rate[5:])], index = [i for i in self.df.index[5:]])
+        gradient = pd.Series([(grad-target_rate[num])/15 for num, grad in enumerate(target_rate[15:])], index = [i for i in self.df.index[15:]])
         gradient_means = gradient.rolling(lookback, center=False).mean()
         gradient_std = gradient.rolling(lookback, center=False).std()
 
@@ -140,18 +141,25 @@ class Rate_Exposures(object):
         
         rets = {}
         
+        if self.df.iloc[0,1] < 3:
+            is_pct = 1
+        else:
+            is_pct = 0
+
         for num, date in enumerate(self.df.index):
-            
             if (num+self.forward < len(self.df)):
-                
                 if self.benchmark:
-                    
-                    rets[date] = (((self.df[list(self.sectors)].iloc[num+self.forward] / self.df[list(self.sectors)].iloc[num]) - 1) - 
-                            ((self.df[self.benchmark].iloc[num+self.forward] / self.df[self.benchmark].iloc[num]) - 1))
-                
+                    if is_pct:
+                        rets[date] = (self.df[list(self.sectors)].iloc[num:num+self.forward].cumsum().iloc[-1] - 
+                                self.df[self.benchmark].iloc[num:num+self.forward].cumsum().iloc[-1])
+                    else:
+                        rets[date] = (((self.df[list(self.sectors)].iloc[num+self.forward] / self.df[list(self.sectors)].iloc[num]) - 1) - 
+                                ((self.df[self.benchmark].iloc[num+self.forward] / self.df[self.benchmark].iloc[num]) - 1))
                 else:
-                    
-                    rets[date] = (self.df[list(self.sectors)].iloc[num+self.forward] / self.df[list(self.sectors)].iloc[num]) - 1
+                    if is_pct:
+                        rets[date] = self.df[list(self.sectors)].iloc[num:num+self.forward].cumsum().iloc[-1]
+                    else:
+                        rets[date] = (self.df[list(self.sectors)].iloc[num+self.forward] / self.df[list(self.sectors)].iloc[num]) - 1
                     
         
         temp = rets.copy()

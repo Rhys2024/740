@@ -6,7 +6,30 @@ from datetime import date, timedelta
 import numpy as np
 from statsmodels.tsa.stattools import adfuller
 from scipy.stats import norm
+from statsmodels.tsa.ar_model import AutoReg
+from statsmodels.graphics.tsaplots import plot_acf
+from statsmodels.graphics.tsaplots import plot_pacf
+import yfinance as yf
+from statsmodels.tsa.stattools import adfuller
+from statsmodels.tsa.arima.model import ARIMA
+import matplotlib.pyplot as plt
 
+mat = "Materials"
+ind = "Industrials"
+cd = "Consumer Discretionary"
+cs = "Consumer Staples"
+hc = "Health Care"
+fin = "Financials"
+tech = "Information Technology"
+comm = "Telecommunication Services"
+ut = "Utilities"
+re = "Real Estate"
+en = "Energy"
+semiconductors = "Semiconductors"
+aero = "Aerospace"
+sp500 = "SP-500"
+ry = "Real Yield"
+yc = "Yield Curve"
 
 def beta(data_2_columns):
     
@@ -54,7 +77,7 @@ def get_scores(lookback, target):
     
     target_rate = target
     
-    gradient = pd.Series([(grad-target_rate[num])/15 for num, grad in enumerate(target_rate[15:])], index = [i for i in target.index[15:]]).dropna()
+    gradient = pd.Series([(grad-target_rate[num])/5 for num, grad in enumerate(target_rate[5:])], index = [i for i in target.index[5:]]).dropna()
     
     gradient_means = gradient.rolling(lookback, center=False).mean()
     gradient_std = gradient.rolling(lookback, center=False).std()
@@ -68,7 +91,7 @@ def get_scores(lookback, target):
     
     scores = round(raw_scores, 0)
     
-    return scores
+    return scores.dropna()
 
 
 # compare_group = None
@@ -87,13 +110,19 @@ def update_data():
     # "ten", "two",
     factor_names = ['Value', 'Quality', 'Size', 'Default', "Real Yield", "Yield Curve"]
     
-    #if 'sector' in compare_group.lower():
+    sectors = [f"^SP500-{i}" for i in range(15,65,5)]
+    sectors.append("^GSPE")
+    sectors.append("SOXX")
+    sectors.append("ITA")
+    sectors.append("^GSPC")
+    
+    sec = yf.download(sectors, start = '2010-01-04', progress=False)["Close"]
         
-    sec = yf.download([f"^SP500-{i}" for i in range(15,65,5)], start = '2010-01-04', progress=False)["Close"]
-    sec['Energy'] = yf.download(["^GSPE"], start = '2010-01-04', progress=False)["Close"]
-    sec['Semiconductors'] = yf.download(["SOXX"], start = '2010-01-04', progress=False)["Close"]
-    sec['Aerospace'] = yf.download(["ITA"], start = '2010-01-04', progress=False)["Close"]
-    sec['SP-500'] = yf.download("^GSPC", start = '2010-01-04', progress=False)["Close"]
+    #sec = yf.download([f"^SP500-{i}" for i in range(15,65,5)], start = '2010-01-04', progress=False)["Close"]
+    #sec['Energy'] = yf.download(["^GSPE"], start = '2010-01-04', progress=False)["Close"]
+    #sec['Semiconductors'] = yf.download(["SOXX"], start = '2010-01-04', progress=False)["Close"]
+    #sec['Aerospace'] = yf.download(["ITA"], start = '2010-01-04', progress=False)["Close"]
+    #sec['SP-500'] = yf.download("^GSPC", start = '2010-01-04', progress=False)["Close"]
     sec['Real Yield'] = fred.get_series('DFII10', observation_start = '2010-01-04', end = date.today())
     sec['Yield Curve'] = fred.get_series('T10Y2Y', observation_start = '2010-01-04', end = date.today())
         
@@ -155,6 +184,15 @@ def VAR(df_of_returns, weights, n_days, current_value_of_portfolio, confidence_l
     cutoff1 = norm.ppf(confidence_level, mean_investment, stdev_investment)
 
     var_1d1 = current_value_of_portfolio - cutoff1
-    
-    
+
     return np.round(var_1d1*np.sqrt(n_days), 2)
+
+
+def barplot_1d(pandas_series, stds_series = None, size = (12,8)):
+    
+    plt.figure(figsize=(size))
+    if stds_series:
+        plt.bar(pandas_series.index, pandas_series, yerr = stds_series)
+    else:
+        plt.bar(pandas_series.index, pandas_series)
+    plt.show()
