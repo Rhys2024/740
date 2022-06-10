@@ -30,7 +30,7 @@ class Rate_Exposures(object):
             self.scores[rate] = self.get_scores(self.look_back, rate)
             self.monthly_scores[rate] = round(self.scores[rate].groupby(pd.PeriodIndex(self.scores[rate].index, freq="M")).mean(), 0)
         
-        
+
         self.sectors = [i for i in df.columns if i not in compare_against and i != self.benchmark]
         self.bucket_scores = { i : [] for i in self.sectors}
         
@@ -47,8 +47,8 @@ class Rate_Exposures(object):
         self.combined_signals = pd.Series([(r,c) for r,c in zip(self.scores['Real Yield'].dropna(), self.scores['Yield Curve'].dropna())], 
                  index = self.scores['Yield Curve'].dropna().index)
         self.combined_signal_counts = self.combined_signals.value_counts().to_dict()
-            
-        #print(self.scores['Real Yield'])
+
+
         self.removes = [f"{self.compare_against[0]}_scores", f"{self.compare_against[1]}_scores"]
         
         ### DAILY DATA ###
