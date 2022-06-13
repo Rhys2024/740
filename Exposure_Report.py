@@ -1,4 +1,3 @@
-#from statistics import correlation
 import pandas as pd
 import numpy as np
 from collections import deque
@@ -12,7 +11,7 @@ from dateutil.relativedelta import relativedelta as delt
 import Useful_Functions as useful
 from scipy.stats.mstats import normaltest
 
-class Rate_Exposures(object):
+class Exposure(object):
     
     def __init__(self, df, look_back, forward, compare_against = ['Real Yield'], benchmark = None):
         
@@ -50,49 +49,94 @@ class Rate_Exposures(object):
         self.combined_signal_counts = self.combined_signals.value_counts().to_dict()
 
 
-        self.removes = [f"{self.compare_against[0]}_scores", f"{self.compare_against[1]}_scores"]
+        self.removes = [f"{rate}_scores" for rate in self.compare_against]
         
-        ### DAILY DATA ###
-        self.total_returns = self.get_return_data(self.forward_returns_daily)
-        self.mean_returns = pd.DataFrame({s : self.total_returns[s].mean() for s in self.total_returns})
-        
-        self.ry_total_returns = self.get_return_data(self.forward_returns_daily, "ry")
-        self.ry_mean_returns = pd.DataFrame({s : self.ry_total_returns[s].mean() for s in self.ry_total_returns})
-        self.yc_total_returns = self.get_return_data(self.forward_returns_daily, "yc")
-        self.yc_mean_returns = pd.DataFrame({s : self.yc_total_returns[s].mean() for s in self.yc_total_returns})
-        
-        self.mean_returns = self.mean_returns.dropna(axis = 1).T
-        self.mean_returns.index = pd.MultiIndex.from_tuples(list(self.mean_returns.index))
-        self.ry_mean_returns = self.ry_mean_returns.T
-        self.yc_mean_returns = self.yc_mean_returns.T
-        ###
-        
-        ### MONTHLY DATA ###
-        self.total_returns_monthly = self.get_return_data(self.forward_returns_monthly)
-        self.mean_returns_monthly = pd.DataFrame({s : self.total_returns_monthly[s].mean() for s in self.total_returns_monthly})
-        
-        self.ry_total_returns_monthly = self.get_return_data(self.forward_returns_monthly, "ry")
-        self.ry_mean_returns_monthly = pd.DataFrame({s : self.ry_total_returns_monthly[s].mean() for s in self.ry_total_returns_monthly})
-        self.yc_total_returns_monthly = self.get_return_data(self.forward_returns_monthly, "yc")
-        self.yc_mean_returns_monthly = pd.DataFrame({s : self.yc_total_returns_monthly[s].mean() for s in self.yc_total_returns_monthly})
-        
-        self.mean_returns_monthly = self.mean_returns_monthly.dropna(axis = 1).T
-        self.mean_returns_monthly.index = pd.MultiIndex.from_tuples(list(self.mean_returns_monthly.index))
-        self.ry_mean_returns_monthly = self.ry_mean_returns_monthly.T
-        self.yc_mean_returns_monthly = self.yc_mean_returns_monthly.T
-        ###
+        self.total_returns = {}
+        self.mean_returns = {}
+
+        for rate in self.scores:
+            
+            self.total_returns[rate] = self.get_return_data(self.forward_returns_daily, rate)
+            self.mean_returns[rate] = pd.DataFrame({s : self.total_returns[rate][s].mean() for s in self.total_returns[rate]}).dropna().T
+            
+            #is_normal = []
+            
+            #for s in self.total_returns[rate]:
+                
+                #try:
+                    #is_normal.append(normaltest(self.total_returns[rate][s])[1] < .05)
+                #except:
+                    #is_normal.append(np.array(['Insufficient Data' for i in range(len(self.total_returns[rate][s].columns))]))
+
+        #self.is_normal_dist = pd.DataFrame(is_normal, columns = self.mean_returns["Real Yield"].columns, index = self.mean_returns[rate].index)
         
         
+        self.total_past_rate_combinations = pd.Series([tuple(i) for i in self.forward_returns_daily.dropna().iloc[:,-(len(self.compare_against)):].values]).unique()
+        
+        if self.compare_against == ["Real Yield", "Yield Curve"]:
+            
+            ry_yc_combo = self.get_combo_data(self.compare_against)
+        
+            self.total_return_ry_yc = ry_yc_combo[0]
+            self.mean_return_ry_yc = ry_yc_combo[1]
+            
+        else:    
+            
+            all_combos = self.get_combo_data(self.compare_against)
+            
+            self.total_return_all_combos = all_combos[0]
+            self.mean_return_all_combos = all_combos[1]
     
-    
-    def get_return_data(self, returns_data, rate = "both"):
         
-        max_scores = [int(max(self.scores[rate].dropna().unique())) for rate in self.compare_against]
-        min_scores = [int(min(self.scores[rate].dropna().unique())) for rate in self.compare_against]
+        
+    def get_combo_data(self, combo = None):
+    
+        assert isinstance(combo, list), "combo must me a list of comparable rates"
+        
+        forward_ret_copy = self.forward_returns_daily.copy().dropna()
+        
+        cols = {rate : f"{rate}_scores" for rate in combo}
+            
+        past_combinations = pd.Series([tuple(i) for i in forward_ret_copy[list(cols.values()) ].values], index = forward_ret_copy.index)
+        forward_ret_copy = forward_ret_copy.iloc[:,:-(len(self.compare_against))]
+
+        forward_ret_copy['combos'] = past_combinations
+            
+        
+        uniques = past_combinations.unique()
+        combo_rets = {}
+        mean_combo_rets = {}
+        
+        for un in uniques:
+            
+            combo_rets[un] = forward_ret_copy.iloc[:,:-1].loc[ forward_ret_copy.combos == un]
+            mean_combo_rets[un] = combo_rets[un].mean()
+        
+        mean_combo_rets = pd.DataFrame(mean_combo_rets).T
+        
+        return [combo_rets, mean_combo_rets]
+
+
+
+    def get_return_data(self, returns_data, rate = None):
+        
+        score_range = [int(i) for i in self.scores[rate].dropna()[:-self.forward].sort_values().unique()]
         
         temp = {}
         
-        for score in range(min_scores[0],max_scores[0]):
+        for score in score_range:
+            
+            consider = f"{rate}_scores"
+            
+            temp[score] = returns_data.loc[returns_data[consider] == score].drop(columns = self.removes)
+            
+            if len(temp[score]) == 0:
+                temp.pop
+                
+        
+        
+        '''
+                for score in range(min_scores[0],max_scores[0]):
             
             if "real" in rate.lower() or "ry" in rate.lower():
                 consider = f"{self.compare_against[0]}_scores"
@@ -112,6 +156,9 @@ class Rate_Exposures(object):
                     
                     if len(data) > 0:
                         temp[(score, score_2)] = data
+        
+        '''
+
         
         return temp
     

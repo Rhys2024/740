@@ -9,10 +9,10 @@ from scipy.stats import norm
 from statsmodels.tsa.ar_model import AutoReg
 from statsmodels.graphics.tsaplots import plot_acf
 from statsmodels.graphics.tsaplots import plot_pacf
-import yfinance as yf
 from statsmodels.tsa.stattools import adfuller
 from statsmodels.tsa.arima.model import ARIMA
 import matplotlib.pyplot as plt
+import scipy.stats as si
 
 mat = "Materials"
 ind = "Industrials"
@@ -20,8 +20,8 @@ cd = "Consumer Discretionary"
 cs = "Consumer Staples"
 hc = "Health Care"
 fin = "Financials"
-tech = "Information Technology"
-comm = "Telecommunication Services"
+tech = "Technology"
+comm = "Telecomm"
 ut = "Utilities"
 re = "Real Estate"
 en = "Energy"
@@ -94,39 +94,37 @@ def get_scores(lookback, target):
     return scores.dropna()
 
 
-# compare_group = None
-# assert compare_group
 def update_data():
     
     fred = fa.Fred('4fb0ce271d0f66f4b5b3904b4aaf1dd0')
     
-    # "ten", "two",
+    # 'Semiconductors', "Aerospace",
     sector_names = ['Materials', 'Industrials', 'Consumer Discretionary', 
                         'Consumer Staples', 'Health Care',
-                        'Financials', 'Information Technology', 
-                        'Telecommunication Services', 'Utilities', 'Real Estate', 'Energy', 'Semiconductors', "Aerospace",
+                        'Financials', 'Technology', 
+                        'Telecomm', 'Utilities', 'Real Estate', 'Energy',
                         "SP-500", "Real Yield", "Yield Curve"]
     
-    # "ten", "two",
     factor_names = ['Value', 'Quality', 'Size', 'Default', "Real Yield", "Yield Curve"]
+
+    secs_for_sector_etf_webpage = ["materials", "industrials", "consumer-discretionaries", "consumer-staples", 
+                                   "healthcare", "financials", "technology", "telecom", "utilities", "real-estate"]
+    important_features_for_sector_etf_webpage =["Symbol", "ETF Name", "Industry", "Previous Closing Price", "Beta", "P/E Ratio", "YTD", "1 Month", "1 Year"]
+    
     
     sectors = [f"^SP500-{i}" for i in range(15,65,5)]
     sectors.append("^GSPE")
-    sectors.append("SOXX")
-    sectors.append("ITA")
+    #sectors.append("SOXX")
+    #sectors.append("ITA")
     sectors.append("^GSPC")
-    
-    sec = yf.download(sectors, start = '2010-01-04', progress=False)["Close"]
-        
-    #sec = yf.download([f"^SP500-{i}" for i in range(15,65,5)], start = '2010-01-04', progress=False)["Close"]
-    #sec['Energy'] = yf.download(["^GSPE"], start = '2010-01-04', progress=False)["Close"]
+    sec = yf.download([f"^SP500-{i}" for i in range(15,65,5)], start = '2010-01-04', progress=False)["Close"]
+    sec['Energy'] = yf.download(["^GSPE"], start = '2010-01-04', progress=False)["Close"]
     #sec['Semiconductors'] = yf.download(["SOXX"], start = '2010-01-04', progress=False)["Close"]
     #sec['Aerospace'] = yf.download(["ITA"], start = '2010-01-04', progress=False)["Close"]
-    #sec['SP-500'] = yf.download("^GSPC", start = '2010-01-04', progress=False)["Close"]
+    sec['SP-500'] = yf.download("^GSPC", start = '2010-01-04', progress=False)["Close"]
     sec['Real Yield'] = fred.get_series('DFII10', observation_start = '2010-01-04', end = date.today())
     sec['Yield Curve'] = fred.get_series('T10Y2Y', observation_start = '2010-01-04', end = date.today())
         
-    #if 'factor' in compare_group.lower():
         
     fact = pd.DataFrame()
     fact['Value'] = yf.download(["VLUE"], start = '2010-01-04', progress=False)["Close"]
@@ -135,25 +133,24 @@ def update_data():
     fact['Default'] = yf.download(["FIBR"], start = '2010-01-04', progress=False)["Close"]
     fact['Real Yield'] = sec['Real Yield']
     fact['Yield Curve'] = sec['Yield Curve']
+
+
+    sector_etfs = {}
+    writer = pd.ExcelWriter("Sector_ETF_Options.xlsx", engine='xlsxwriter')
+    for num, s in enumerate(secs_for_sector_etf_webpage):
+        url = f"https://etfdb.com/etfs/sector/{s}/"
+        sector_etfs[sector_names[num]] = pd.read_html(url)[0].iloc[:-1,:][important_features_for_sector_etf_webpage]
+        sector_etfs[sector_names[num]].to_excel(writer, sheet_name = f"{sector_names[num]} ETFs")
+    
+    writer.save()
+        
     
     sec.columns = sector_names
     fact.columns = factor_names
     
-    #sectors = pd.DataFrame(sec.values, columns = sector_names, index = sec.index)
-    
-    #sec['ten'] = fred.get_series('DGS10', observation_start = '2010-01-04', end = date.today())
-    #sec['two'] = fred.get_series('DGS2', observation_start = '2010-01-04', end = date.today())
-    
     sec.dropna().to_csv("sectors_and_rates.csv")
     fact.dropna().to_csv("factors_and_rates.csv")
     
-    #if 'sector' in compare_group.lower():
-        #sec.columns = sector_names
-        #return sec.dropna()
-    
-    #if 'factor' in compare_group.lower():
-        #sec.columns = factor_names
-        #return sec.dropna()
 
 
 def get_monthly_data(data):
@@ -191,8 +188,40 @@ def VAR(df_of_returns, weights, n_days, current_value_of_portfolio, confidence_l
 def barplot_1d(pandas_series, stds_series = None, size = (12,8)):
     
     plt.figure(figsize=(size))
-    if stds_series:
-        plt.bar(pandas_series.index, pandas_series, yerr = stds_series)
+    if isinstance(stds_series, pd.core.series.Series):
+        plt.bar(pandas_series.index, pandas_series, yerr = stds_series, capsize = 8)
     else:
         plt.bar(pandas_series.index, pandas_series)
     plt.show()
+    
+
+def vega_div(S, K, T, r, q, sigma):
+    
+    #S: spot price
+    #K: strike price
+    #T: time to maturity
+    #r: interest rate
+    #sigma: volatility of underlying asset
+    #q: continuous dividend rate
+    
+    d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+    
+    vega = 1 / np.sqrt(2 * np.pi) * S * np.exp(-q * T) * np.exp(-(d1 ** 2) * 0.5) * np.sqrt(T)
+    
+    return vega
+
+def vega(S, K, T, r, sigma):
+
+    #S: spot price
+    #K: strike price
+    #T: time to maturity
+    #r: interest rate
+    #sigma: volatility of underlying asset
+    
+    d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+    
+    vega = S * si.norm.cdf(d1, 0.0, 1.0) * np.sqrt(T)
+    
+    return vega
+
+
