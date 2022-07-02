@@ -10,7 +10,8 @@ def get_path(end_item, dir_in_740 = 'Reference_Data'):
         item_list = [os.path.expanduser('~'), 'Desktop', '740', dir_in_740, end_item]
         path = "/"
     elif system == "Windows":
-        item_list = [os.environ['USERPROFILE'], 'Desktop', '740', dir_in_740, end_item]
+        user = os.environ['USERPROFILE']
+        item_list = [user, 'OneDrive', 'Desktop', '740', dir_in_740, end_item]
         path = "\\"
     for item in item_list:
         path = os.path.join(path, item)

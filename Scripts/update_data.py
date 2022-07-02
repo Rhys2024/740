@@ -114,7 +114,7 @@ def update_data():
     
     sector_names = list(sector_ids.keys())
     sector_etfs = {}
-    writer = pd.ExcelWriter(get_path("Sector_ETF_Options.xlsx"), engine='xlsxwriter')
+    writer = pd.ExcelWriter(ff.get_path("Sector_ETF_Options.xlsx"), engine='xlsxwriter')
     for num, s in enumerate(secs_for_sector_etf_webpage):
         url = f"https://etfdb.com/etfs/sector/{s}/"
         sector_etfs[sector_names[num]] = pd.read_html(url)[0].iloc[:-1,:][important_features_for_sector_etf_webpage]
