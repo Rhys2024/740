@@ -26,9 +26,15 @@ important_features_for_sector_etf_webpage =["Symbol", "ETF Name", "Industry", "P
                                             "P/E Ratio", "YTD", "1 Month", "1 Year"]
 #####################################################################################################################
 macro_data = ['nominal_yield', 'inflation', 'cpi', 'real_yield', 'yield_curve', 'economic_uncertainty',
-                'market_price', 'market_volume', 'market_volatility']
-macro_cats = {'fred' : {'daily' : ['nominal_yield', 'inflation', 'real_yield', 'yield_curve', 'economic_uncertainty'],
-                        'monthly' : ['cpi'], 
+                'market_price', 'market_volume', 'market_volatility', 'volatility_expectation', 'russel_two_volatility', 
+                'large_cap_volatility', 'oil', 'unemployment']
+
+# , 'jobless_claims' 'weekly' : ['jobless_claims'], , 'jobless_claims' : 'ICSA'
+
+macro_cats = {'fred' : {'daily' : ['nominal_yield', 'inflation', 'real_yield', 'yield_curve', 
+                                   'economic_uncertainty', 'large_cap_volatility', 'volatility_expectation',
+                                   'russel_two_volatility', 'oil'],
+                        'monthly' : ['cpi', 'unemployment'],
                         'quarterly' : []},
                 'yahoo' : {'market_data' :{'Volume' : ['market_volume'],
                                     'Close' : ['market_price'],
@@ -36,7 +42,8 @@ macro_cats = {'fred' : {'daily' : ['nominal_yield', 'inflation', 'real_yield', '
                             },
                 }
 fred_ids = {'nominal_yield' : 'DGS10', 'inflation' : 'T10YIE', 'cpi' : 'CPALTT01USM657N', 
-            'real_yield' : 'DFII10', 'yield_curve' : 'T10Y2Y', 'economic_uncertainty' : 'USEPUINDXD'}
+            'real_yield' : 'DFII10', 'yield_curve' : 'T10Y2Y', 'economic_uncertainty' : 'USEPUINDXD', 'large_cap_volatility' : 'VXNCLS',
+            'volatility_expectation' : 'VIXCLS', 'russel_two_volatility' : 'RVXCLS', 'oil' : 'DCOILWTICO', 'unemployment' : 'UNRATE'}
 #####################################################################################################################
 
 def update_dataframe(ids):
@@ -66,9 +73,10 @@ def update_data():
     
     
     #### MACRO DATA ####
+
     macro = pd.DataFrame()
     for cat in macro_data:
-                
+        print(cat)
         if cat in macro_cats['fred']['daily']:           
             macro[cat] = fred.get_series(fred_ids[cat], observation_start=starting_day_macro, end = date.today())
 
@@ -76,6 +84,13 @@ def update_data():
             monthly = fred.get_series(fred_ids[cat], observation_start=starting_day_macro, end = date.today())
             macro[cat] = monthly
             macro[cat] = macro[cat].ffill().replace(np.nan, monthly[0])
+        
+            '''
+            elif cat in macro_cats['fred']['weekly']:
+                weekly = fred.get_series(fred_ids[cat], observation_start=starting_day_macro, end = date.today())
+                macro[cat] = weekly
+                macro[cat] = macro[cat].replace(np.nan, weekly[0])
+            '''
         
         # Clean up above to handle more shit
         
@@ -90,7 +105,7 @@ def update_data():
                 
         elif cat in macro_cats['yahoo']['market_data']['Volatility']:
             
-            macro = macro.dropna()
+            #macro = macro.dropna()
             try:
                 log_rets = pd.Series(np.log(macro['market_price']/macro['market_price'].shift()), index = macro.index)
             except:
@@ -101,7 +116,8 @@ def update_data():
             macro[cat] = log_rets.rolling(30).std()*252**.5
         
         else:
-            pass
+            pass 
+    
     
     macro.index.name = 'Date'
     macro = round(macro.dropna(), 4)
@@ -130,4 +146,4 @@ if __name__ == "__main__":
     #print(macro_path)
     print('\nupdating data...\n\n')
     update_data()
-    print('Finished updating data!\n\n')
+    print('\nFinished updating data!\n\n')

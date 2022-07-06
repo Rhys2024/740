@@ -37,13 +37,16 @@ class Exposure(object):
             self.forward_returns_daily[f"{rate}_scores"] = self.scores[rate]
             self.forward_returns_daily_raw[f"{rate}_scores"] = self.raw_scores[rate]
         self.forward_returns_daily = self.forward_returns_daily.dropna()
-        
+        self.forward_returns_daily_raw = self.forward_returns_daily_raw.dropna()
         #self.forward_returns_monthly = self.get_monthly_data(self.forward_returns_daily)
         self.forward_returns_monthly = self.forward_returns_daily.rolling(21).mean().dropna()
+        self.forward_returns_monthly_raw = self.forward_returns_monthly.copy()
         for rate in self.compare_against:
             self.forward_returns_monthly[f"{rate}_scores"] = self.monthly_scores[rate]
-
+            self.forward_returns_monthly_raw[f"{rate}_scores"] = self.raw_scores_monthly[rate]
+            
         self.forward_returns_monthly = self.forward_returns_monthly.dropna()
+        self.forward_returns_monthly_raw = self.forward_returns_monthly_raw.dropna()
         
         self.removes = [f"{rate}_scores" for rate in self.compare_against]
         
@@ -104,7 +107,7 @@ class Exposure(object):
         
         combo_cols = {rate : f"{rate}_scores" for rate in combo}
         past_combinations = pd.Series(self.__get_combo_scores(combo_cols, forward_ret_copy), index = forward_ret_copy.index)
-
+        
         # forward_ret_copy = forward_ret_copy.iloc[:,:-(len(self.compare_against))]
         forward_ret_copy = forward_ret_copy[self.sectors]
         forward_ret_copy['combos'] = past_combinations
@@ -146,8 +149,9 @@ class Exposure(object):
         gradient = self.df[target].diff(10)
 
         # min_periods = 252, window = len(ry)-1).mean()
-        regular_scores = (self.df[target] - self.df[target].rolling(lookback).mean()) / self.df[target].rolling(lookback).std()
-        gradient_scores = (gradient - gradient.rolling(lookback).mean()) / gradient.rolling(lookback).std()
+        length = len(self.df[target])
+        regular_scores = (self.df[target] - self.df[target].rolling(lookback, min_periods = 60).mean()) / self.df[target].rolling(lookback, min_periods = 60).std()
+        gradient_scores = (gradient - gradient.rolling(lookback, min_periods = 60).mean()) / gradient.rolling(lookback, min_periods = 60).std()
         
         raw_scores = np.round((regular_scores + gradient_scores).dropna(),3)
         
